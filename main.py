@@ -2,26 +2,16 @@ import json
 import nclib as nc
 import asyncio
 import PySimpleGUI as sg
+import sys
 
-username = ""
+ipaddress = sys.argv[1]
+username = sys.argv[2]
+ip_range = ipaddress[0:ipaddress.rfind(".")]
+
 users = {}
 messages = {}
 upd = True
 upd_chat = False
-
-
-def parse_message(message):
-    try:
-        response = json.loads(message)
-        print(response)
-        if response["type"] == 1:
-            print("discover")
-        elif response["type"] == 2:
-            print("discover_response")
-        elif response["type"] == 3:
-            print("chat")
-    except:
-        print(message)
 
 
 def listen():
@@ -33,7 +23,7 @@ def listen():
         try:
             response = json.loads(packet)
             if response["type"] == 1:
-                listen.send('{ "type":2, "name":"burak", "IP":"192.168.2.3"}')
+                listen.send('{ "type":2, "name":"'+username+'", "IP":"'+ipaddress+'"}')
                 if response["name"] is not None and response["IP"] is not None:
                     users[response["name"]] = (response["IP"], [])
                     upd = True
@@ -50,19 +40,15 @@ def discover():
     global upd
     for octet in range(221, 224):
         try:
-            print(str(octet))
-            sent = nc.Netcat(("192.168.1." + str(octet), 12345), raise_timeout=True)
-            print(sent.gettimeout())
-            sent.send('{ "type":1, "name":"burak", "IP":"192.168.2.3"}')
+            sent = nc.Netcat((ip_range + "." + str(octet), 12345), raise_timeout=True)
+            sent.send('{ "type":1, "name":"'+username+'", "IP":"'+ipaddress+'"}')
 
             packet = sent.read()
             try:
                 response = json.loads(packet)
-                print(response)
                 if response["type"] == 2:
                     if response["name"] is not None and response["IP"] is not None:
                         users[response["name"]] = (response["IP"], [])
-                        print(users)
                         upd = True
             except:
                 print(packet)
@@ -87,11 +73,12 @@ def chat_messages(user):
     except  Exception as e:
         print(e)
 
+chatuser=""
 
 def gui():
     global upd
     global upd_chat
-
+    global chatuser
     user_list = [
         [
             sg.Text("Deneme"),
@@ -132,7 +119,6 @@ def gui():
     ]
 
     window = sg.Window("Image Viewer", layout)
-
     while True:
         event, values = window.read(timeout=1)
 
@@ -141,8 +127,8 @@ def gui():
 
         if event == "userlist":
             try:
+                chatuser=values["userlist"][0]
                 window["chat"].update(chat_messages(values["userlist"][0]))
-                print("aaa")
                 window["send"].update(disabled=False)
                 window["userlist"].update(users)
             except:
@@ -150,7 +136,7 @@ def gui():
 
         if upd_chat:
             try:
-                window["chat"].update(chat_messages(values["userlist"][0]))
+                window["chat"].update(chat_messages(chatuser))
                 window["userlist"].update(users)
                 upd_chat = False
             except:
@@ -158,26 +144,25 @@ def gui():
 
         if event == "send":
             try:
-
-                if values["userlist"][0] is not None:
-                    r = send_message(values["userlist"][0], "192.168.1.222", values["chatbox"])
+                if chatuser != "":
+                    r = send_message(chatuser, values["chatbox"])
                     if r == 1:
                         window["chat"].update([])
                         window["chatbox"].update("")
                         window["send"].update(disabled=True)
                     else:
-                        window["chat"].update(chat_messages(values["userlist"][0]))
+                        window["chat"].update(chat_messages(chatuser))
                         window["chatbox"].update("")
-            except:
-                pass
+            except Exception as e:
+                print(e)
         if event == "OK" or event == sg.WIN_CLOSED:
             break
 
-def send_message(name, ip, body):
+def send_message(name, body):
     try:
-        print(body)
+        ip = users[name][0]
         sent = nc.Netcat((ip, 12345), raise_timeout=True)
-        sent.send('{"type":3, "name":"' + "kazim" + '", "body":"' + body + '"}')
+        sent.send('{"type":3, "name":"' + username + '", "body":"' + body + '"}')
         sent.close()
         users[name][1].append((0, body))
     except Exception as e:
