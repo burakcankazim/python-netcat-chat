@@ -1,0 +1,2 @@
+nclib==1.0.1
+PySimpleGUI==4.53.0
